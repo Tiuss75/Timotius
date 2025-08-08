@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { 
-    getAuth, 
-    onAuthStateChanged, 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword, 
+import {
+    getAuth,
+    onAuthStateChanged,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
     signOut,
+    updateProfile,
 } from 'firebase/auth';
-import { 
-    getFirestore, 
-    collection, 
-    addDoc, 
-    query, 
-    onSnapshot, 
-    doc, 
-    updateDoc, 
+import {
+    getFirestore,
+    collection,
+    addDoc,
+    query,
+    onSnapshot,
+    doc,
+    updateDoc,
     deleteDoc,
-    arrayUnion, 
+    arrayUnion,
     arrayRemove,
     orderBy,
     serverTimestamp,
@@ -29,7 +30,7 @@ const firebaseConfig = {
     apiKey: "AIzaSyDk4SMx8BXldMFJfkB_Te7w2K7T8goz0VQ",
     authDomain: "timotius-web.firebaseapp.com",
     projectId: "timotius-web",
-    storageBucket: "timotius-web.firebasestorage.app",
+    storageBucket: "timotius-web.firebasestorage.app", // Masih ada di config tapi tidak dipakai lagi
     messagingSenderId: "98455139056",
     appId: "1:98455139056:web:45a85d656cb16396794835"
 };
@@ -57,6 +58,9 @@ const CloseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w
 const EditIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>;
 const DeleteIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
 const MenuIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>;
+const AddIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>;
+const UserIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>;
+
 
 // --- Komponen LoginPage ---
 const LoginPage = ({ setNotification, onLoginSuccess }) => {
@@ -87,7 +91,7 @@ const LoginPage = ({ setNotification, onLoginSuccess }) => {
     };
 
     return (
-         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-[60] flex flex-col justify-center items-center p-4 font-sans">
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-[60] flex flex-col justify-center items-center p-4 font-sans">
             <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 space-y-6">
                 <div className="text-center">
                     <h2 className="text-3xl font-bold text-gray-800">Selamat Datang</h2>
@@ -132,17 +136,8 @@ const Notification = ({ notification, setNotification }) => {
 // --- Komponen Post ---
 const Post = ({ item, currentUser, onLike, onShare, onSelect }) => {
     const hasLiked = currentUser && item.likes.includes(currentUser.uid);
-
-    const handleLikeClick = (e) => {
-        e.stopPropagation();
-        onLike(item.id, hasLiked);
-    };
-    
-    const handleShareClick = (e) => {
-        e.stopPropagation();
-        onShare(item.id);
-    };
-
+    const handleLikeClick = (e) => { e.stopPropagation(); onLike(item.id, hasLiked); };
+    const handleShareClick = (e) => { e.stopPropagation(); onShare(item.id); };
     const renderMedia = () => {
         if (item.type === 'image') {
             return <img className="w-full h-auto object-cover" src={item.url} alt={item.title} onError={(e) => { e.target.onerror = null; e.target.src=`https://placehold.co/600x400/e2e8f0/333?text=Image+Error`; }} />;
@@ -152,94 +147,90 @@ const Post = ({ item, currentUser, onLike, onShare, onSelect }) => {
         }
         return <div className="w-full bg-gray-200 aspect-video flex items-center justify-center"><p>{item.title}</p></div>
     }
-
     return (
         <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6 break-inside-avoid-column">
             <div className="p-4 flex items-center">
-                <img className="h-10 w-10 rounded-full object-cover" src={`https://i.pravatar.cc/40?u=${item.userId}`} alt="User avatar" />
+                <img className="h-10 w-10 rounded-full object-cover" src={item.photoURL || `https://i.pravatar.cc/40?u=${item.userId}`} alt="User avatar" />
                 <div className="ml-3">
-                    <p className="text-sm font-semibold text-gray-800">{item.userId === currentUser?.uid ? 'Saya' : `User`}</p>
+                    <p className="text-sm font-semibold text-gray-800">{item.displayName || (item.userId === currentUser?.uid ? 'Saya' : `User`)}</p>
                     <p className="text-xs text-gray-500">{new Date(item.createdAt?.toDate()).toLocaleDateString('id-ID')}</p>
                 </div>
             </div>
-            <div onClick={() => onSelect(item)} className="cursor-pointer">
-                {renderMedia()}
-            </div>
+            <div onClick={() => onSelect(item)} className="cursor-pointer">{renderMedia()}</div>
             <div className="p-4">
                 <p className="font-bold text-gray-800">{item.title}</p>
                 <p className="text-gray-600 text-sm mt-1">{item.description}</p>
             </div>
             <div className="px-4 py-2 border-t border-gray-200 flex justify-between items-center">
                 <div className="flex space-x-4">
-                    <button onClick={handleLikeClick} className="flex items-center space-x-1 text-gray-600 hover:text-red-500 transition">
-                        <HeartIcon filled={hasLiked} />
-                        <span>{item.likes.length}</span>
-                    </button>
-                    <button onClick={handleShareClick} className="flex items-center space-x-1 text-gray-600 hover:text-blue-500 transition">
-                        <ShareIcon />
-                        <span>Share</span>
-                    </button>
+                    <button onClick={handleLikeClick} className="flex items-center space-x-1 text-gray-600 hover:text-red-500 transition"><HeartIcon filled={hasLiked} /><span>{item.likes.length}</span></button>
+                    <button onClick={handleShareClick} className="flex items-center space-x-1 text-gray-600 hover:text-blue-500 transition"><ShareIcon /><span>Share</span></button>
                 </div>
             </div>
         </div>
     );
 };
 
-// --- Komponen HomePage (untuk Feed) ---
-const HomePage = ({ media, currentUser, onLike, onShare, onSelect, pageTitle }) => {
-    return (
-        <div className="p-4 md:p-6 lg:p-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-6">{pageTitle}</h1>
-            {media.length === 0 ? (
-                <p className="text-gray-500">Belum ada media di sini.</p>
-            ) : (
-                <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6">
-                    {media.map(item => (
-                        <Post key={item.id} item={item} currentUser={currentUser} onLike={onLike} onShare={onShare} onSelect={onSelect} />
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
+// --- Komponen HomePage & GalleryPage ---
+const HomePage = ({ media, currentUser, onLike, onShare, onSelect, pageTitle }) => (
+    <div className="p-4 md:p-6 lg:p-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-6">{pageTitle}</h1>
+        {media.length === 0 ? <p className="text-gray-500">Belum ada media di sini.</p> : (
+            <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6">
+                {media.map(item => <Post key={item.id} item={item} currentUser={currentUser} onLike={onLike} onShare={onShare} onSelect={onSelect} />)}
+            </div>
+        )}
+    </div>
+);
 
-// --- Komponen GalleryPage (untuk Galeri & Video) ---
-const GalleryPage = ({ media, onSelect, pageTitle }) => {
-    return (
-      <div className="p-4 md:p-6 lg:p-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">{pageTitle}</h1>
-           {media.length === 0 ? (
-                <p className="text-gray-500">Anda belum mengunggah media apapun di kategori ini.</p>
-           ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {media.map(item => (
-                        <div key={item.id} className="group relative rounded-lg overflow-hidden cursor-pointer" onClick={() => onSelect(item)}>
-                            {item.type === 'image' ? (
-                                <img src={item.url} alt={item.title} className="w-full h-full object-cover aspect-square transition-transform duration-300 group-hover:scale-110" />
-                            ) : (
-                                <video src={item.url} className="w-full h-full object-cover aspect-square bg-black"></video>
-                            )}
-                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center p-2">
-                                <p className="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-center">{item.title}</p>
+const GalleryPage = ({ media, onSelect, onDelete, onEdit, pageTitle }) => (
+    <div className="p-4 md:p-6 lg:p-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-6">{pageTitle}</h1>
+        {media.length === 0 ? <p className="text-gray-500">Anda belum mengunggah media apapun di kategori ini.</p> : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {media.map(item => (
+                    <div key={item.id} className="group relative rounded-lg overflow-hidden" onClick={() => onSelect(item)}>
+                        {item.type === 'image' ? <img src={item.url} alt={item.title} className="w-full h-full object-cover aspect-square transition-transform duration-300 group-hover:scale-110" /> : <video src={item.url} className="w-full h-full object-cover aspect-square bg-black"></video>}
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex flex-col justify-end p-2">
+                            <p className="text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-center">{item.title}</p>
+                            <div className="flex justify-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+                                    className="p-2 bg-white/20 rounded-full hover:bg-white/40 text-white"
+                                    title="Edit">
+                                    <EditIcon />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+                                    className="p-2 bg-red-500/80 rounded-full hover:bg-red-600/80 text-white"
+                                    title="Hapus">
+                                    <DeleteIcon />
+                                </button>
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
+                    </div>
+                ))}
+            </div>
+        )}
+    </div>
+);
 
 // --- Komponen UploadPage ---
-const UploadPage = ({ currentUser, setNotification, onUploadComplete }) => {
+const UploadPage = ({ currentUser, setNotification, onUploadComplete, categories }) => {
     const [files, setFiles] = useState([]);
     const [previews, setPreviews] = useState([]);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [category, setCategory] = useState('Liburan');
+    const [category, setCategory] = useState(categories[0]?.label || 'Uncategorized');
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const fileInputRef = useRef();
+
+    useEffect(() => {
+        if (categories.length > 0) {
+            setCategory(categories[0].label);
+        }
+    }, [categories]);
 
     const handleFileChange = (e) => {
         const selectedFiles = Array.from(e.target.files);
@@ -250,49 +241,41 @@ const UploadPage = ({ currentUser, setNotification, onUploadComplete }) => {
     };
 
     const resetForm = () => {
-        setFiles([]);
-        setPreviews([]);
-        setTitle('');
-        setDescription('');
-        setCategory('Liburan');
-        setUploadProgress(0);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
-    }
+        setFiles([]); setPreviews([]); setTitle(''); setDescription(''); setCategory(categories[0]?.label || 'Uncategorized'); setUploadProgress(0);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (files.length === 0 || !currentUser) {
-            setNotification({ type: 'error', message: 'Pilih minimal satu file untuk diunggah.' });
-            return;
-        }
-        setLoading(true);
-        setUploadProgress(0);
-
+        if (files.length === 0 || !currentUser) { setNotification({ type: 'error', message: 'Pilih minimal satu file.' }); return; }
+        setLoading(true); setUploadProgress(0);
+        
         let uploadedCount = 0;
-
         const uploadPromises = files.map(async (file) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
             try {
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                const response = await axios.post(CLOUDINARY_UPLOAD_URL, formData, {
+                    onUploadProgress: progressEvent => {
+                        const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+                        setUploadProgress(progress);
+                    }
+                });
 
-                const res = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
-                const { secure_url, resource_type } = res.data;
-
-                const mediaCollectionRef = collection(db, 'media');
-                await addDoc(mediaCollectionRef, {
+                const downloadUrl = response.data.secure_url;
+                await addDoc(collection(db, 'media'), {
                     title: files.length === 1 ? title || file.name : file.name,
                     description: files.length === 1 ? description : "",
                     category,
-                    url: secure_url,
-                    type: resource_type,
+                    url: downloadUrl,
+                    type: file.type.startsWith('image') ? 'image' : 'video',
                     userId: currentUser.uid,
+                    photoURL: currentUser.photoURL,
                     createdAt: serverTimestamp(),
                     likes: [],
                 });
-
                 uploadedCount++;
                 setUploadProgress(Math.round((uploadedCount / files.length) * 100));
 
@@ -301,7 +284,7 @@ const UploadPage = ({ currentUser, setNotification, onUploadComplete }) => {
                 throw new Error(`Gagal mengunggah ${file.name}`);
             }
         });
-
+        
         try {
             await Promise.all(uploadPromises);
             setNotification({ type: 'success', message: `${files.length} media berhasil diunggah!` });
@@ -309,7 +292,7 @@ const UploadPage = ({ currentUser, setNotification, onUploadComplete }) => {
             if (onUploadComplete) onUploadComplete();
         } catch (error) {
             console.error("Error during bulk upload:", error);
-            setNotification({ type: 'error', message: `${error.message}. Beberapa file mungkin tidak terunggah.` });
+            setNotification({ type: 'error', message: `${error.message}.` });
         } finally {
             setLoading(false);
         }
@@ -320,107 +303,98 @@ const UploadPage = ({ currentUser, setNotification, onUploadComplete }) => {
             <h1 className="text-3xl font-bold text-gray-800 mb-6">Upload Media Baru</h1>
             <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-lg space-y-6">
                 <div>
-                    <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700">File Foto/Video (Bisa lebih dari satu)</label>
+                    <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700">File Foto/Video</label>
                     <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                         <div className="space-y-1 text-center">
                             {previews.length > 0 ? (
                                 <div className="flex flex-wrap justify-center gap-4 p-4">
-                                    {previews.map((src, index) => (
-                                        files[index].type.startsWith('video/')
-                                        ? <video key={src} src={src} className="h-24 w-auto rounded-lg object-contain bg-gray-200" />
-                                        : <img key={src} src={src} alt="Preview" className="h-24 w-auto rounded-lg object-contain" />
-                                    ))}
+                                    {previews.map((src, index) => ( files[index].type.startsWith('video/') ? <video key={src} src={src} className="h-24 w-auto rounded-lg object-contain bg-gray-200" /> : <img key={src} src={src} alt="Preview" className="h-24 w-auto rounded-lg object-contain" /> ))}
                                 </div>
-                            ) : (
-                                 <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>
-                            )}
+                            ) : ( <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg> )}
                             <div className="flex text-sm text-gray-600 justify-center">
-                                <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500">
-                                    <span>Pilih file</span>
-                                    <input id="file-upload" name="file-upload" type="file" ref={fileInputRef} onChange={handleFileChange} className="sr-only" accept="image/*,video/*" multiple />
-                                </label>
+                                <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500"><span>Pilih file</span><input id="file-upload" name="file-upload" type="file" ref={fileInputRef} onChange={handleFileChange} className="sr-only" accept="image/*,video/*" multiple /></label>
                             </div>
                             <p className="text-xs text-gray-500">{files.length > 0 ? `${files.length} file dipilih` : 'PNG, JPG, MP4, dll.'}</p>
                         </div>
                     </div>
                 </div>
-
                 {files.length === 1 && (
                     <>
-                        <div>
-                            <label htmlFor="title" className="block text-sm font-medium text-gray-700">Judul (Opsional)</label>
-                            <input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder={`Default: ${files[0]?.name}`} className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" />
-                        </div>
-                        <div>
-                            <label htmlFor="description" className="block text-sm font-medium text-gray-700">Deskripsi</label>
-                            <textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={3} className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" />
-                        </div>
+                        <div><label htmlFor="title" className="block text-sm font-medium text-gray-700">Judul (Opsional)</label><input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder={`Default: ${files[0]?.name}`} className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" /></div>
+                        <div><label htmlFor="description" className="block text-sm font-medium text-gray-700">Deskripsi</label><textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={3} className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" /></div>
                     </>
                 )}
-
-                 <div>
+                <div>
                     <label htmlFor="category" className="block text-sm font-medium text-gray-700">Kategori</label>
                     <select id="category" value={category} onChange={e => setCategory(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md">
-                        <option>Liburan</option>
-                        <option>Keluarga</option>
-                        <option>Pekerjaan</option>
-                        <option>Hobi</option>
-                        <option>Lainnya</option>
+                        {categories.map(cat => <option key={cat.id} value={cat.label}>{cat.label}</option>)}
                     </select>
                 </div>
-                
-                {loading && (
-                     <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
-                    </div>
-                )}
-
-                <div>
-                    <button type="submit" disabled={loading || files.length === 0} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300">
-                        {loading ? `Mengunggah... ${uploadProgress}%` : `Kirim ${files.length} File`}
-                    </button>
-                </div>
+                {loading && ( <div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div></div> )}
+                <div><button type="submit" disabled={loading || files.length === 0} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300">{loading ? `Mengunggah... ${uploadProgress}%` : `Kirim ${files.length} File`}</button></div>
             </form>
         </div>
     );
 };
 
 // --- Komponen SettingsPage ---
-const SettingsPage = ({ user, setNotification }) => {
-    const [menus, setMenus] = useState([]);
-    const [newMenuLabel, setNewMenuLabel] = useState("");
-    const [loading, setLoading] = useState(true);
-    const menusCollectionRef = collection(db, 'menus');
+const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEditCategory, onDeleteCategory, onUpdateProfilePicture, onUserUpdate }) => {
+    const [newCategoryLabel, setNewCategoryLabel] = useState("");
+    const [editingCategory, setEditingCategory] = useState(null);
+    const [editCategoryLabel, setEditCategoryLabel] = useState("");
+    const [profileFile, setProfileFile] = useState(null);
+    const [loadingProfile, setLoadingProfile] = useState(false);
 
-    useEffect(() => {
-        if (!user) return;
-        const q = query(menusCollectionRef, where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const menuList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setMenus(menuList);
-            setLoading(false);
-        });
-        return () => unsubscribe();
-    }, [user]);
-
-    const handleAddMenu = async (e) => {
+    const handleAddCategory = async (e) => {
         e.preventDefault();
-        if (!newMenuLabel.trim()) return;
-        const pageName = newMenuLabel.trim().toLowerCase().replace(/\s+/g, '-');
-        await addDoc(menusCollectionRef, {
-            label: newMenuLabel.trim(),
-            pageName: `custom-${pageName}`,
-            userId: user.uid,
-        });
-        setNewMenuLabel("");
-        setNotification({type: 'success', message: 'Menu baru berhasil ditambahkan!'});
+        if (!newCategoryLabel.trim()) return;
+        await onAddCategory(newCategoryLabel.trim());
+        setNewCategoryLabel("");
+        setNotification({ type: 'success', message: 'Kategori baru berhasil ditambahkan!' });
     };
 
-    const handleDeleteMenu = async (menuId) => {
-        if (window.confirm("Anda yakin ingin menghapus menu ini?")) {
-            const menuDoc = doc(db, 'menus', menuId);
-            await deleteDoc(menuDoc);
-            setNotification({type: 'info', message: 'Menu telah dihapus.'});
+    const handleEditCategory = async (e) => {
+        e.preventDefault();
+        if (!editCategoryLabel.trim()) return;
+        await onEditCategory(editingCategory.id, editCategoryLabel.trim());
+        setEditingCategory(null);
+        setEditCategoryLabel("");
+        setNotification({ type: 'success', message: 'Kategori berhasil diubah!' });
+    };
+
+    const handleDeleteCategory = async (categoryId) => {
+        if (window.confirm("Anda yakin ingin menghapus kategori ini?")) {
+            await onDeleteCategory(categoryId);
+            setNotification({ type: 'info', message: 'Kategori telah dihapus.' });
+        }
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setProfileFile(file);
+        }
+    };
+
+    const handleUploadProfile = async () => {
+        if (!profileFile || !user) return;
+        setLoadingProfile(true);
+        const formData = new FormData();
+        formData.append('file', profileFile);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        try {
+            const response = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
+            const photoURL = response.data.secure_url;
+            
+            await updateProfile(user, { photoURL });
+            onUserUpdate({ ...user, photoURL });
+            setNotification({ type: 'success', message: 'Foto profil berhasil diunggah!' });
+        } catch (error) {
+            console.error("Error uploading profile picture:", error);
+            setNotification({ type: 'error', message: 'Gagal mengunggah foto profil.' });
+        } finally {
+            setLoadingProfile(false);
+            setProfileFile(null);
         }
     };
 
@@ -434,28 +408,67 @@ const SettingsPage = ({ user, setNotification }) => {
                     <p><strong>User ID:</strong> {user?.uid}</p>
                 </div>
                 <div className="border-t pt-6">
-                    <h2 className="text-xl font-semibold text-gray-700">Kelola Menu Kustom</h2>
-                    <p className="text-sm text-gray-500 mb-4">Tambahkan menu baru seperti "Food Holiday Bandung". Menu ini akan muncul di sidebar.</p>
-                    <form onSubmit={handleAddMenu} className="flex gap-2 mb-4">
-                        <input type="text" value={newMenuLabel} onChange={(e) => setNewMenuLabel(e.target.value)} placeholder="Nama Menu Baru" className="flex-grow block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"/>
-                        <button type="submit" className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">Tambah</button>
+                    <h2 className="text-xl font-semibold text-gray-700 mb-4">Ubah Foto Profil</h2>
+                    <div className="flex items-center space-x-4">
+                        <img
+                            src={user?.photoURL || `https://i.pravatar.cc/100?u=${user?.uid}`}
+                            alt="Foto Profil"
+                            className="w-20 h-20 rounded-full object-cover"
+                        />
+                        <input type="file" onChange={handleFileChange} accept="image/*" className="text-sm text-gray-600"/>
+                        <button
+                            onClick={handleUploadProfile}
+                            disabled={!profileFile || loadingProfile}
+                            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300">
+                            {loadingProfile ? "Mengunggah..." : "Ganti Foto"}
+                        </button>
+                    </div>
+                </div>
+                <div className="border-t pt-6">
+                    <h2 className="text-xl font-semibold text-gray-700">Kelola Kategori Media</h2>
+                    <form onSubmit={handleAddCategory} className="flex gap-2 mb-4 mt-4">
+                        <input
+                            type="text"
+                            value={newCategoryLabel}
+                            onChange={(e) => setNewCategoryLabel(e.target.value)}
+                            placeholder="Nama Kategori Baru"
+                            className="flex-grow block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"/>
+                        <button type="submit" className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                            <AddIcon />
+                        </button>
                     </form>
-                    <h3 className="text-lg font-medium text-gray-600 mt-6">Daftar Menu Anda:</h3>
-                    {loading ? <p>Memuat menu...</p> : (
-                        <ul className="space-y-2 mt-2">
-                            {menus.map(menu => (
-                                <li key={menu.id} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
-                                    <span>{menu.label}</span>
-                                    <button onClick={() => handleDeleteMenu(menu.id)} className="text-red-500 hover:text-red-700"><DeleteIcon /></button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    <h3 className="text-lg font-medium text-gray-600 mt-6">Daftar Kategori Anda:</h3>
+                    <ul className="space-y-2 mt-2">
+                        {categories.map(cat => (
+                            <li key={cat.id} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+                                {editingCategory?.id === cat.id ? (
+                                    <form onSubmit={handleEditCategory} className="flex flex-grow gap-2">
+                                        <input
+                                            type="text"
+                                            value={editCategoryLabel}
+                                            onChange={(e) => setEditCategoryLabel(e.target.value)}
+                                            className="flex-grow block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"/>
+                                        <button type="submit" className="text-green-500 hover:text-green-700"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></button>
+                                        <button onClick={() => {setEditingCategory(null); setEditCategoryLabel("")}} className="text-gray-500 hover:text-gray-700"><CloseIcon /></button>
+                                    </form>
+                                ) : (
+                                    <>
+                                        <span>{cat.label}</span>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => {setEditingCategory(cat); setEditCategoryLabel(cat.label)}} className="text-blue-500 hover:text-blue-700"><EditIcon /></button>
+                                            <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-500 hover:text-red-700"><DeleteIcon /></button>
+                                        </div>
+                                    </>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             </div>
         </div>
     );
-}
+};
+
 
 // --- Komponen Lightbox Modal ---
 const LightboxModal = ({ item, user, onClose, onUpdate, onDelete }) => {
@@ -464,56 +477,37 @@ const LightboxModal = ({ item, user, onClose, onUpdate, onDelete }) => {
     const [editDescription, setEditDescription] = useState("");
 
     useEffect(() => {
-        if (item) {
-            setEditTitle(item.title);
-            setEditDescription(item.description);
-        } else {
-            setIsEditing(false);
-        }
+        if (item) { setEditTitle(item.title); setEditDescription(item.description); }
+        else { setIsEditing(false); }
     }, [item]);
 
     if (!item) return null;
-
     const isOwner = user && user.uid === item.userId;
-
-    const handleSave = () => {
-        onUpdate(item.id, { title: editTitle, description: editDescription });
-        setIsEditing(false);
-    };
+    const handleSave = () => { onUpdate(item.id, { title: editTitle, description: editDescription }); setIsEditing(false); };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50" onClick={onClose}>
-            <div className="relative max-w-4xl max-h-[90vh] w-full flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-                <div className="flex-shrink-0 flex justify-end">
-                     <button onClick={onClose} className="text-white hover:text-gray-300"><CloseIcon /></button>
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4" onClick={onClose}>
+            <div className="relative max-w-4xl max-h-[90vh] w-full flex flex-col gap-4 overflow-y-auto p-4" onClick={e => e.stopPropagation()}>
+                <div className="flex-shrink-0 flex justify-end absolute top-4 right-4 z-10">
+                    <button onClick={onClose} className="text-white bg-black/30 rounded-full p-1 hover:bg-black/60"><CloseIcon /></button>
                 </div>
                 <div className="flex-grow w-full h-full flex items-center justify-center">
-                    {item.type === 'image' ? (
-                        <img src={item.url} alt={item.title} className="max-w-full max-h-[70vh] object-contain rounded-lg" />
-                    ) : (
-                        <video src={item.url} controls className="max-w-full max-h-[70vh] object-contain rounded-lg bg-black" />
-                    )}
+                    {item.type === 'image' ? <img src={item.url} alt={item.title} className="max-w-full max-h-full object-contain rounded-lg" /> : <video src={item.url} controls className="max-w-full max-h-full object-contain rounded-lg bg-black" />}
                 </div>
                 <div className="flex-shrink-0 bg-white/10 backdrop-blur-sm p-4 rounded-lg text-white">
                     {isEditing ? (
                         <div className="space-y-2">
                             <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-gray-700 text-white p-2 rounded" placeholder="Judul"/>
                             <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="w-full bg-gray-700 text-white p-2 rounded" placeholder="Deskripsi"></textarea>
-                            <div className="flex gap-2">
-                                <button onClick={handleSave} className="bg-blue-600 px-3 py-1 rounded">Simpan</button>
-                                <button onClick={() => setIsEditing(false)} className="bg-gray-500 px-3 py-1 rounded">Batal</button>
-                            </div>
+                            <div className="flex gap-2"><button onClick={handleSave} className="bg-blue-600 px-3 py-1 rounded">Simpan</button><button onClick={() => setIsEditing(false)} className="bg-gray-500 px-3 py-1 rounded">Batal</button></div>
                         </div>
                     ) : (
                         <div className="flex justify-between items-start">
-                            <div>
-                                <h3 className="font-bold text-xl">{item.title}</h3>
-                                <p>{item.description}</p>
-                            </div>
+                            <div><h3 className="font-bold text-xl">{item.title}</h3><p>{item.description}</p></div>
                             {isOwner && (
-                                <div className="flex gap-3">
-                                    <button onClick={() => setIsEditing(true)} className="p-2 bg-white/20 rounded-full hover:bg-white/40"><EditIcon /></button>
-                                    <button onClick={() => onDelete(item.id)} className="p-2 bg-white/20 rounded-full hover:bg-white/40"><DeleteIcon /></button>
+                                <div className="flex gap-3 flex-shrink-0 ml-4">
+                                    <button onClick={() => setIsEditing(true)} className="p-2 bg-white/20 rounded-full hover:bg-white/40" title="Edit"><EditIcon /></button>
+                                    <button onClick={() => onDelete(item.id)} className="p-2 bg-white/20 rounded-full hover:bg-white/40" title="Hapus"><DeleteIcon /></button>
                                 </div>
                             )}
                         </div>
@@ -535,163 +529,131 @@ export default function App() {
     const [selectedItem, setSelectedItem] = useState(null);
     const [notification, setNotification] = useState(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [customMenus, setCustomMenus] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [showLogin, setShowLogin] = useState(false);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
-            setShowLogin(!currentUser);
+            setShowLogin(false);
             setLoadingAuth(false);
         });
         return () => unsubscribe();
     }, []);
 
     useEffect(() => {
-        const mediaCollectionRef = collection(db, 'media');
-        const q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const mediaList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setMedia(mediaList);
-            setLoadingMedia(false);
-        }, (error) => {
-            console.error("Error fetching media:", error);
-            setNotification({ type: 'error', message: 'Gagal memuat data galeri.' });
-            setLoadingMedia(false);
-        });
-        return () => unsubscribe();
-    }, []);
-
-    useEffect(() => {
-        if (!user) {
-            setCustomMenus([]);
-            return;
-        };
-        const menusCollectionRef = collection(db, 'menus');
-        const q = query(menusCollectionRef, where("userId", "==", user.uid));
+        if (!user) { setCategories([]); return; };
+        const q = query(collection(db, 'categories'), where("userId", "==", user.uid), orderBy('label'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const menuList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setCustomMenus(menuList);
-        });
+            setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (error) => { console.error("Error fetching categories:", error); setNotification({type: "error", message:"Gagal memuat kategori."})});
         return () => unsubscribe();
     }, [user]);
+
+    useEffect(() => {
+        const mediaCollectionRef = collection(db, 'media');
+        const q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            setMedia(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            setLoadingMedia(false);
+        }, (error) => { console.error("Error fetching media:", error); setLoadingMedia(false); });
+        return () => unsubscribe();
+    }, []);
 
     const handleLogout = async () => {
         await signOut(auth);
         setPage('home');
         setNotification({ type: 'info', message: 'Anda telah logout.' });
+        setShowLogin(true);
     };
 
     const handleLike = async (itemId, hasLiked) => {
-        if (!user) {
-            setNotification({ type: 'error', message: 'Silakan login untuk menyukai post.' });
-            setShowLogin(true);
-            return;
-        }
+        if (!user) { setShowLogin(true); return; }
         const itemRef = doc(db, 'media', itemId);
-        try {
-            await updateDoc(itemRef, {
-                likes: hasLiked ? arrayRemove(user.uid) : arrayUnion(user.uid)
-            });
-        } catch (error) {
-            console.error("Error updating like:", error);
-            setNotification({ type: 'error', message: 'Gagal memperbarui suka.' });
-        }
+        await updateDoc(itemRef, { likes: hasLiked ? arrayRemove(user.uid) : arrayUnion(user.uid) });
     };
     
     const handleShare = (itemId) => {
-        const url = `${window.location.href}#item/${itemId}`;
-        navigator.clipboard.writeText(url)
+        navigator.clipboard.writeText(`${window.location.href}#item/${itemId}`)
             .then(() => setNotification({ type: 'success', message: 'Link telah disalin!' }))
             .catch(() => setNotification({ type: 'error', message: 'Gagal menyalin link.' }));
     };
 
     const handleDeleteMedia = async (itemId) => {
         if (window.confirm("Apakah Anda yakin ingin menghapus media ini?")) {
-            try {
-                await deleteDoc(doc(db, 'media', itemId));
-                setNotification({ type: 'info', message: 'Media berhasil dihapus.' });
-                setSelectedItem(null);
-            } catch (error) {
-                console.error("Error deleting media:", error);
-                setNotification({ type: 'error', message: `Gagal menghapus: ${error.message}` });
-            }
+            await deleteDoc(doc(db, 'media', itemId));
+            setNotification({ type: 'info', message: 'Media berhasil dihapus.' });
+            setSelectedItem(null);
         }
     };
 
     const handleUpdateMedia = async (itemId, data) => {
-        try {
-            const itemRef = doc(db, 'media', itemId);
-            await updateDoc(itemRef, data);
-            setNotification({ type: 'success', message: 'Media berhasil diperbarui.' });
-            const updatedItem = { ...selectedItem, ...data };
-            setSelectedItem(updatedItem);
-        } catch (error) {
-            console.error("Error updating media:", error);
-            setNotification({ type: 'error', message: `Gagal memperbarui: ${error.message}` });
-        }
+        const itemRef = doc(db, 'media', itemId);
+        await updateDoc(itemRef, data);
+        setNotification({ type: 'success', message: 'Media berhasil diperbarui.' });
+        setSelectedItem(selectedItem ? { ...selectedItem, ...data } : null);
+    };
+
+    const handleAddCategory = async (label) => {
+        if (!user) return;
+        await addDoc(collection(db, 'categories'), { label: label, userId: user.uid });
+    };
+
+    const handleEditCategory = async (categoryId, newLabel) => {
+        if (!user) return;
+        await updateDoc(doc(db, 'categories', categoryId), { label: newLabel });
+    };
+
+    const handleDeleteCategory = async (categoryId) => {
+        if (!user) return;
+        await deleteDoc(doc(db, 'categories', categoryId));
     };
 
     const handleNavigation = (pageName) => {
-        const protectedPages = ['gallery', 'videos', 'upload', 'settings', ...customMenus.map(m => m.pageName)];
-        if (protectedPages.includes(pageName) && !user) {
-            setNotification({type: 'info', message: 'Anda harus login untuk mengakses halaman ini.'});
-            setShowLogin(true);
-            return;
-        }
+        const categoryPage = categories.find(cat => cat.label === pageName);
+        if (['gallery', 'videos', 'upload', 'settings'].includes(pageName) && !user) { setShowLogin(true); return; }
+        if (categoryPage && !user) { setShowLogin(true); return; }
+
         setPage(pageName);
         setIsSidebarOpen(false);
     }
     
     const renderPage = () => {
-        if (loadingMedia) {
-            return <div className="flex justify-center items-center h-full p-8"><p>Memuat data...</p></div>;
+        if (loadingMedia) { return <div className="flex justify-center items-center h-full p-8"><p>Memuat data...</p></div>; }
+        
+        const selectedCategory = categories.find(cat => cat.label === page);
+        if (selectedCategory) {
+            const categorizedMedia = media.filter(m => m.userId === user?.uid && m.category === selectedCategory.label);
+            return <GalleryPage
+                media={categorizedMedia}
+                onSelect={setSelectedItem}
+                onEdit={(item) => setSelectedItem(item)}
+                onDelete={handleDeleteMedia}
+                pageTitle={`Kategori: ${selectedCategory.label}`}
+            />;
         }
-
-        const customMenu = customMenus.find(m => m.pageName === page);
-        if (customMenu) {
-             const customMedia = media.filter(m => m.userId === user?.uid);
-             return <HomePage media={customMedia} currentUser={user} onLike={handleLike} onShare={handleShare} onSelect={setSelectedItem} pageTitle={customMenu.label} />;
-        }
-
+        
         switch (page) {
-            case 'home':
-                return <HomePage media={media} currentUser={user} onLike={handleLike} onShare={handleShare} onSelect={setSelectedItem} pageTitle="Feed Terbaru" />;
-            case 'gallery':
-                const userMedia = media.filter(m => m.userId === user?.uid);
-                return <GalleryPage media={user ? userMedia : []} onSelect={setSelectedItem} pageTitle="Galeri Saya" />;
-            case 'videos':
-                const userVideos = media.filter(m => m.userId === user?.uid && m.type === 'video');
-                return <GalleryPage media={user ? userVideos : []} onSelect={setSelectedItem} pageTitle="Video Saya" />;
-            case 'upload':
-                return <UploadPage currentUser={user} setNotification={setNotification} onUploadComplete={() => setPage('gallery')} />;
-            case 'settings':
-                return <SettingsPage user={user} setNotification={setNotification} />;
-            default:
-                return <HomePage media={media} currentUser={user} onLike={handleLike} onShare={handleShare} onSelect={setSelectedItem} pageTitle="Feed Terbaru" />;
+            case 'home': return <HomePage media={media} currentUser={user} onLike={handleLike} onShare={handleShare} onSelect={setSelectedItem} pageTitle="Feed Terbaru" />;
+            case 'gallery': return <GalleryPage media={media.filter(m => m.userId === user?.uid)} onSelect={setSelectedItem} onEdit={(item) => setSelectedItem(item)} onDelete={handleDeleteMedia} pageTitle="Galeri Saya" />;
+            case 'videos': return <GalleryPage media={media.filter(m => m.userId === user?.uid && m.type === 'video')} onSelect={setSelectedItem} onEdit={(item) => setSelectedItem(item)} onDelete={handleDeleteMedia} pageTitle="Video Saya" />;
+            case 'upload': return <UploadPage currentUser={user} setNotification={setNotification} onUploadComplete={() => setPage('gallery')} categories={categories} />;
+            case 'settings': return <SettingsPage user={user} setNotification={setNotification} categories={categories} onAddCategory={handleAddCategory} onEditCategory={handleEditCategory} onDeleteCategory={handleDeleteCategory} onUserUpdate={setUser} />;
+            default: return <HomePage media={media} currentUser={user} onLike={handleLike} onShare={handleShare} onSelect={setSelectedItem} pageTitle="Feed Terbaru" />;
         }
     };
 
     const NavLink = ({ icon, label, pageName }) => (
-        <a href="#" onClick={(e) => { e.preventDefault(); handleNavigation(pageName); }}
-            className={`flex items-center px-4 py-3 text-gray-700 hover:bg-blue-100 hover:text-blue-600 rounded-lg transition-colors duration-200 ${page === pageName ? 'bg-blue-100 text-blue-600 font-semibold' : ''}`}
-        >
-            {icon}
-            <span className="ml-4">{label}</span>
-        </a>
+        <a href="#" onClick={(e) => { e.preventDefault(); handleNavigation(pageName); }} className={`flex items-center px-4 py-3 text-gray-700 hover:bg-blue-100 hover:text-blue-600 rounded-lg transition-colors duration-200 ${page === pageName ? 'bg-blue-100 text-blue-600 font-semibold' : ''}`}>{icon}<span className="ml-4">{label}</span></a>
     );
 
-    if (loadingAuth) {
-        return <div className="min-h-screen flex items-center justify-center bg-gray-100"><p>Memuat aplikasi...</p></div>;
-    }
+    if (loadingAuth) { return <div className="min-h-screen flex items-center justify-center bg-gray-100"><p>Memuat aplikasi...</p></div>; }
     
     return (
         <div className="min-h-screen bg-gray-50 font-sans">
             <Notification notification={notification} setNotification={setNotification} />
             <LightboxModal item={selectedItem} user={user} onClose={() => setSelectedItem(null)} onUpdate={handleUpdateMedia} onDelete={handleDeleteMedia} />
-            {showLogin && !user && <LoginPage setNotification={setNotification} onLoginSuccess={() => setShowLogin(false)} />}
-
+            {showLogin && <LoginPage setNotification={setNotification} onLoginSuccess={() => setShowLogin(false)} />}
             <div className="flex">
                 <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen sticky top-0 p-4">
                     <div className="text-2xl font-bold text-blue-600 mb-8 px-4">GaleriKu</div>
@@ -702,24 +664,17 @@ export default function App() {
                             <NavLink icon={<VideoIcon />} label="Video" pageName="videos" />
                             <NavLink icon={<UploadIcon />} label="Upload" pageName="upload" />
                             <hr className="my-4" />
-                            {customMenus.map(menu => ( <NavLink key={menu.id} icon={<MenuIcon />} label={menu.label} pageName={menu.pageName} /> ))}
+                            <div className="px-4 text-sm font-semibold text-gray-400">KATEGORI</div>
+                            {categories.map(cat => ( <NavLink key={cat.id} icon={<MenuIcon />} label={cat.label} pageName={cat.label} /> ))}
                             <hr className="my-4" />
                             <NavLink icon={<SettingsIcon />} label="Pengaturan" pageName="settings" />
                         </> )}
                     </nav>
-                    {user && (
-                        <div className="mt-auto">
-                           <a href="#" onClick={handleLogout} className="flex items-center px-4 py-3 text-gray-700 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors duration-200">
-                               <LogoutIcon />
-                               <span className="ml-4">Logout</span>
-                           </a>
-                       </div>
-                    )}
+                    {user && ( <div className="mt-auto"><a href="#" onClick={handleLogout} className="flex items-center px-4 py-3 text-gray-700 hover:bg-red-100 hover:text-red-600 rounded-lg"><LogoutIcon /><span className="ml-4">Logout</span></a></div> )}
                 </aside>
-
                 <div className={`fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden ${isSidebarOpen ? 'block' : 'hidden'}`} onClick={() => setIsSidebarOpen(false)}></div>
                 <aside className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 p-4 z-40 transform transition-transform md:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                   <div className="text-2xl font-bold text-blue-600 mb-8 px-4">GaleriKu</div>
+                    <div className="text-2xl font-bold text-blue-600 mb-8 px-4">GaleriKu</div>
                     <nav className="flex-grow space-y-2">
                         <NavLink icon={<HomeIcon />} label="Home" pageName="home" />
                         {user && ( <>
@@ -727,45 +682,27 @@ export default function App() {
                             <NavLink icon={<VideoIcon />} label="Video" pageName="videos" />
                             <NavLink icon={<UploadIcon />} label="Upload" pageName="upload" />
                             <hr className="my-4" />
-                            {customMenus.map(menu => ( <NavLink key={menu.id} icon={<MenuIcon />} label={menu.label} pageName={menu.pageName} /> ))}
+                            <div className="px-4 text-sm font-semibold text-gray-400">KATEGORI</div>
+                            {categories.map(cat => ( <NavLink key={cat.id} icon={<MenuIcon />} label={cat.label} pageName={cat.label} /> ))}
                             <hr className="my-4" />
                             <NavLink icon={<SettingsIcon />} label="Pengaturan" pageName="settings" />
                         </> )}
                     </nav>
-                    {user && (
-                        <div className="mt-auto">
-                           <a href="#" onClick={handleLogout} className="flex items-center px-4 py-3 text-gray-700 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors duration-200">
-                               <LogoutIcon />
-                               <span className="ml-4">Logout</span>
-                           </a>
-                       </div>
-                    )}
+                    {user && ( <div className="mt-auto"><a href="#" onClick={handleLogout} className="flex items-center px-4 py-3 text-gray-700 hover:bg-red-100 hover:text-red-600 rounded-lg"><LogoutIcon /><span className="ml-4">Logout</span></a></div> )}
                 </aside>
-                
                 <main className="flex-1">
                     <header className="sticky top-0 bg-white/80 backdrop-blur-sm border-b border-gray-200 z-10 flex items-center justify-between p-4">
-                        <button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 md:hidden">
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                        </button>
+                        <button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 md:hidden"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg></button>
                         <div className="text-xl font-bold text-blue-600 md:hidden">GaleriKu</div>
                         <div className="flex-grow"></div>
                         <div className="flex items-center">
-                           {user ? (
-                                <>
-                                    <span className="text-sm font-medium text-gray-700 mr-3 hidden sm:block">{user.email}</span>
-                                    <img className="h-10 w-10 rounded-full object-cover" src={`https://i.pravatar.cc/40?u=${user.uid}`} alt="User avatar" />
-                                </>
-                           ) : (
-                               <button onClick={() => setShowLogin(true)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg text-sm">
-                                   Login / Daftar
-                               </button>
-                           )}
+                            {user ? ( <>
+                                <span className="text-sm font-medium text-gray-700 mr-3 hidden sm:block">{user.email}</span>
+                                <img className="h-10 w-10 rounded-full object-cover" src={user.photoURL || `https://i.pravatar.cc/40?u=${user.uid}`} alt="User avatar" />
+                            </> ) : ( <button onClick={() => setShowLogin(true)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg text-sm">Login / Daftar</button> )}
                         </div>
                     </header>
-
-                    <div className="w-full">
-                        {renderPage()}
-                    </div>
+                    <div className="w-full">{renderPage()}</div>
                 </main>
             </div>
         </div>
