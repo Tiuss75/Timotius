@@ -10,6 +10,8 @@ import {
 } from 'firebase/auth';
 import {
     getFirestore,
+    getDoc, 
+   setDoc,
     collection,
     addDoc,
     query,
@@ -21,7 +23,8 @@ import {
     arrayRemove,
     orderBy,
     serverTimestamp,
-    where
+    where,
+    getDocs
 } from 'firebase/firestore';
 import axios from 'axios';
 
@@ -30,7 +33,7 @@ const firebaseConfig = {
     apiKey: "AIzaSyDk4SMx8BXldMFJfkB_Te7w2K7T8goz0VQ",
     authDomain: "timotius-web.firebaseapp.com",
     projectId: "timotius-web",
-    storageBucket: "timotius-web.firebasestorage.app", // Masih ada di config tapi tidak dipakai lagi
+    storageBucket: "timotius-web.firebasestorage.app",
     messagingSenderId: "98455139056",
     appId: "1:98455139056:web:45a85d656cb16396794835"
 };
@@ -60,7 +63,6 @@ const DeleteIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 
 const MenuIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>;
 const AddIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>;
 const UserIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>;
-
 
 // --- Komponen LoginPage ---
 const LoginPage = ({ setNotification, onLoginSuccess }) => {
@@ -183,8 +185,13 @@ const HomePage = ({ media, currentUser, onLike, onShare, onSelect, pageTitle }) 
     </div>
 );
 
-const GalleryPage = ({ media, onSelect, onDelete, onEdit, pageTitle }) => (
+const GalleryPage = ({ media, onSelect, onDelete, onEdit, pageTitle, userHeader }) => (
     <div className="p-4 md:p-6 lg:p-8">
+        {userHeader && (
+            <div className="mb-8">
+                <img src={userHeader} alt="User Header" className="w-full h-48 object-cover rounded-xl shadow-lg" />
+            </div>
+        )}
         <h1 className="text-3xl font-bold text-gray-800 mb-6">{pageTitle}</h1>
         {media.length === 0 ? <p className="text-gray-500">Anda belum mengunggah media apapun di kategori ini.</p> : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -338,12 +345,14 @@ const UploadPage = ({ currentUser, setNotification, onUploadComplete, categories
 };
 
 // --- Komponen SettingsPage ---
-const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEditCategory, onDeleteCategory, onUpdateProfilePicture, onUserUpdate }) => {
+const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEditCategory, onDeleteCategory, onUserUpdate, onUpdateUserHeader }) => {
     const [newCategoryLabel, setNewCategoryLabel] = useState("");
     const [editingCategory, setEditingCategory] = useState(null);
     const [editCategoryLabel, setEditCategoryLabel] = useState("");
     const [profileFile, setProfileFile] = useState(null);
+    const [headerFile, setHeaderFile] = useState(null);
     const [loadingProfile, setLoadingProfile] = useState(false);
+    const [loadingHeader, setLoadingHeader] = useState(false);
 
     const handleAddCategory = async (e) => {
         e.preventDefault();
@@ -369,10 +378,17 @@ const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEdit
         }
     };
 
-    const handleFileChange = (e) => {
+    const handleProfileFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
             setProfileFile(file);
+        }
+    };
+
+    const handleHeaderFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setHeaderFile(file);
         }
     };
 
@@ -385,7 +401,6 @@ const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEdit
         try {
             const response = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
             const photoURL = response.data.secure_url;
-            
             await updateProfile(user, { photoURL });
             onUserUpdate({ ...user, photoURL });
             setNotification({ type: 'success', message: 'Foto profil berhasil diunggah!' });
@@ -395,6 +410,31 @@ const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEdit
         } finally {
             setLoadingProfile(false);
             setProfileFile(null);
+        }
+    };
+    
+    const handleUploadHeader = async () => {
+        if (!headerFile || !user) return;
+        setLoadingHeader(true);
+        const formData = new FormData();
+        formData.append('file', headerFile);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        try {
+            const response = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
+            const headerURL = response.data.secure_url;
+            
+            // Simpan URL header di koleksi pengguna di Firestore
+           const userDocRef = doc(db, 'users', user.uid);
+await setDoc(userDocRef, { headerURL }, { merge: true });
+            
+            onUpdateUserHeader(headerURL);
+            setNotification({ type: 'success', message: 'Gambar header berhasil diunggah!' });
+        } catch (error) {
+            console.error("Error uploading header image:", error);
+            setNotification({ type: 'error', message: 'Gagal mengunggah gambar header.' });
+        } finally {
+            setLoadingHeader(false);
+            setHeaderFile(null);
         }
     };
 
@@ -415,7 +455,7 @@ const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEdit
                             alt="Foto Profil"
                             className="w-20 h-20 rounded-full object-cover"
                         />
-                        <input type="file" onChange={handleFileChange} accept="image/*" className="text-sm text-gray-600"/>
+                        <input type="file" onChange={handleProfileFileChange} accept="image/*" className="text-sm text-gray-600"/>
                         <button
                             onClick={handleUploadProfile}
                             disabled={!profileFile || loadingProfile}
@@ -423,6 +463,24 @@ const SettingsPage = ({ user, setNotification, categories, onAddCategory, onEdit
                             {loadingProfile ? "Mengunggah..." : "Ganti Foto"}
                         </button>
                     </div>
+                </div>
+                {/* Bagian baru untuk ganti header */}
+                <div className="border-t pt-6">
+                    <h2 className="text-xl font-semibold text-gray-700 mb-4">Ubah Gambar Header</h2>
+                    <div className="flex items-center space-x-4">
+                        <input type="file" onChange={handleHeaderFileChange} accept="image/*" className="text-sm text-gray-600"/>
+                        <button
+                            onClick={handleUploadHeader}
+                            disabled={!headerFile || loadingHeader}
+                            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300">
+                            {loadingHeader ? "Mengunggah..." : "Ganti Header"}
+                        </button>
+                    </div>
+                    {user?.headerURL && (
+                        <div className="mt-4">
+                            <img src={user.headerURL} alt="Header Preview" className="w-full h-32 object-cover rounded-lg"/>
+                        </div>
+                    )}
                 </div>
                 <div className="border-t pt-6">
                     <h2 className="text-xl font-semibold text-gray-700">Kelola Kategori Media</h2>
@@ -531,10 +589,28 @@ export default function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [categories, setCategories] = useState([]);
     const [showLogin, setShowLogin] = useState(false);
+    const [userHeader, setUserHeader] = useState(null);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                // Periksa apakah dokumen pengguna sudah ada di Firestore
+               const userDocRef = doc(db, 'users', currentUser.uid);
+const userDocSnap = await getDoc(userDocRef); // Gunakan getDoc()
+
+let headerURL = null;
+if (userDocSnap.exists()) { // Gunakan userDocSnap.exists()
+    headerURL = userDocSnap.data().headerURL;
+}
+                
+                // Tambahkan headerURL ke objek user
+                setUser({ ...currentUser, headerURL });
+                setUserHeader(headerURL);
+
+            } else {
+                setUser(null);
+                setUserHeader(null);
+            }
             setShowLogin(false);
             setLoadingAuth(false);
         });
@@ -630,15 +706,25 @@ export default function App() {
                 onEdit={(item) => setSelectedItem(item)}
                 onDelete={handleDeleteMedia}
                 pageTitle={`Kategori: ${selectedCategory.label}`}
+                userHeader={userHeader}
             />;
         }
         
         switch (page) {
             case 'home': return <HomePage media={media} currentUser={user} onLike={handleLike} onShare={handleShare} onSelect={setSelectedItem} pageTitle="Feed Terbaru" />;
-            case 'gallery': return <GalleryPage media={media.filter(m => m.userId === user?.uid)} onSelect={setSelectedItem} onEdit={(item) => setSelectedItem(item)} onDelete={handleDeleteMedia} pageTitle="Galeri Saya" />;
-            case 'videos': return <GalleryPage media={media.filter(m => m.userId === user?.uid && m.type === 'video')} onSelect={setSelectedItem} onEdit={(item) => setSelectedItem(item)} onDelete={handleDeleteMedia} pageTitle="Video Saya" />;
+            case 'gallery': return <GalleryPage media={media.filter(m => m.userId === user?.uid)} onSelect={setSelectedItem} onEdit={(item) => setSelectedItem(item)} onDelete={handleDeleteMedia} pageTitle="Galeri Saya" userHeader={userHeader} />;
+            case 'videos': return <GalleryPage media={media.filter(m => m.userId === user?.uid && m.type === 'video')} onSelect={setSelectedItem} onEdit={(item) => setSelectedItem(item)} onDelete={handleDeleteMedia} pageTitle="Video Saya" userHeader={userHeader} />;
             case 'upload': return <UploadPage currentUser={user} setNotification={setNotification} onUploadComplete={() => setPage('gallery')} categories={categories} />;
-            case 'settings': return <SettingsPage user={user} setNotification={setNotification} categories={categories} onAddCategory={handleAddCategory} onEditCategory={handleEditCategory} onDeleteCategory={handleDeleteCategory} onUserUpdate={setUser} />;
+            case 'settings': return <SettingsPage 
+                user={user} 
+                setNotification={setNotification} 
+                categories={categories} 
+                onAddCategory={handleAddCategory} 
+                onEditCategory={handleEditCategory} 
+                onDeleteCategory={handleDeleteCategory} 
+                onUserUpdate={setUser} 
+                onUpdateUserHeader={setUserHeader}
+            />;
             default: return <HomePage media={media} currentUser={user} onLike={handleLike} onShare={handleShare} onSelect={setSelectedItem} pageTitle="Feed Terbaru" />;
         }
     };
