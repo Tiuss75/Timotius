@@ -779,7 +779,7 @@ if (userDocSnap.exists()) { // Gunakan userDocSnap.exists()
                 <main className="flex-1">
                     <header className="sticky top-0 bg-white/80 backdrop-blur-sm border-b border-gray-200 z-10 flex items-center justify-between p-4">
                         <button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 md:hidden"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg></button>
-                        <div className="text-xl font-bold text-blue-600 md:hidden">GaleriKu</div>
+                        <div className="text-xl font-bold text-blue-600 md:hidden">Timotius SU</div>
                         <div className="flex-grow"></div>
                         <div className="flex items-center">
                             {user ? ( <>
