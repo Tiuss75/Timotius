@@ -656,7 +656,7 @@ export default function App() {
             {showLogin && <LoginPage setNotification={setNotification} onLoginSuccess={() => setShowLogin(false)} />}
             <div className="flex">
                 <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-screen sticky top-0 p-4">
-                    <div className="text-2xl font-bold text-blue-600 mb-8 px-4">GaleriKu</div>
+                    <div className="text-2xl font-bold text-blue-600 mb-8 px-4">Timotius SU</div>
                     <nav className="flex-grow space-y-2">
                         <NavLink icon={<HomeIcon />} label="Home" pageName="home" />
                         {user && ( <>
